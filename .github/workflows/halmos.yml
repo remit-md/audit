@@ -1,0 +1,72 @@
+name: Halmos
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Protocol repo ref (branch, tag, or SHA)"
+        required: false
+        default: "main"
+        type: string
+      timeout:
+        description: "Solver timeout per test (seconds)"
+        required: false
+        default: "300"
+        type: string
+
+jobs:
+  halmos:
+    name: Halmos symbolic proofs
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout protocol
+        uses: actions/checkout@v4
+        with:
+          repository: remit-md/protocol
+          ref: ${{ inputs.ref }}
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Build contracts
+        run: forge build
+
+      - name: Install Halmos
+        run: pip install halmos
+
+      - name: Run Halmos symbolic proofs
+        run: |
+          halmos \
+            --match-contract RemitSymbolicProofs \
+            --solver-timeout-assertion ${{ inputs.timeout }} \
+            --solver-timeout-branching ${{ inputs.timeout }} \
+            --storage-layout generic \
+            2>&1 | tee halmos-output.txt || true
+
+      - name: Generate summary
+        run: |
+          echo "## Halmos Symbolic Proof Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          grep -E "^(Counterexample|Tested|PASS|FAIL|check_)" halmos-output.txt >> $GITHUB_STEP_SUMMARY || echo "See artifact for full output" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Proofs" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Description |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------------|" >> $GITHUB_STEP_SUMMARY
+          echo "| P1 | Fee correctness: fee ≤ 1% of amount |" >> $GITHUB_STEP_SUMMARY
+          echo "| P2 | Fund conservation: payer loss = payee + fee gain |" >> $GITHUB_STEP_SUMMARY
+          echo "| P3 | No double-settle: escrow can only settle once |" >> $GITHUB_STEP_SUMMARY
+          echo "| P4 | Tab locks exact amount on open |" >> $GITHUB_STEP_SUMMARY
+          echo "| P5 | Fee oracle matches on-chain calculation |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: halmos-report
+          path: halmos-output.txt
+          retention-days: 90

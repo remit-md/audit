@@ -1,0 +1,57 @@
+name: Slither
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Protocol repo ref (branch, tag, or SHA)"
+        required: false
+        default: "main"
+        type: string
+
+jobs:
+  slither:
+    name: Slither static analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout protocol
+        uses: actions/checkout@v4
+        with:
+          repository: remit-md/protocol
+          ref: ${{ inputs.ref }}
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Build contracts
+        run: forge build
+
+      - name: Install Slither
+        run: pip install slither-analyzer
+
+      - name: Run Slither
+        run: |
+          slither . --detect all \
+            --filter-paths "lib/|test/|script/" \
+            --json slither-report.json \
+            2>&1 | tee slither-output.txt || true
+
+      - name: Generate summary
+        run: |
+          echo "## Slither Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          grep -E "^[0-9]+ result|INFO:|LOW:|MEDIUM:|HIGH:|CRITICAL:" slither-output.txt >> $GITHUB_STEP_SUMMARY || echo "See artifact for full output" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: slither-report
+          path: |
+            slither-report.json
+            slither-output.txt
+          retention-days: 90

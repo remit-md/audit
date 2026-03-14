@@ -1,0 +1,56 @@
+name: Aderyn
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Protocol repo ref (branch, tag, or SHA)"
+        required: false
+        default: "main"
+        type: string
+
+jobs:
+  aderyn:
+    name: Aderyn static analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout protocol
+        uses: actions/checkout@v4
+        with:
+          repository: remit-md/protocol
+          ref: ${{ inputs.ref }}
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Build contracts
+        run: forge build
+
+      - name: Install Aderyn
+        run: cargo install aderyn
+
+      - name: Run Aderyn
+        run: |
+          aderyn . --output aderyn-report.md 2>&1 | tee aderyn-output.txt || true
+
+      - name: Generate summary
+        run: |
+          echo "## Aderyn Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f aderyn-report.md ]; then
+            head -50 aderyn-report.md >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No report generated. See artifact for output." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: aderyn-report
+          path: |
+            aderyn-report.md
+            aderyn-output.txt
+          retention-days: 90
