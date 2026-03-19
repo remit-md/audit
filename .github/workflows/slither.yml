@@ -31,8 +31,11 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: Build contracts (no via-IR to fit in cx33 memory)
-        run: FOUNDRY_PROFILE=medusa forge build
+      - name: Build contracts (src only, no via-IR to fit in cx33 memory)
+        run: |
+          # Build only src/ — tests have stack-too-deep without via-IR
+          # and Slither doesn't need them anyway
+          FOUNDRY_PROFILE=medusa forge build --skip test --skip script
 
       - name: Install Slither
         run: pip install slither-analyzer

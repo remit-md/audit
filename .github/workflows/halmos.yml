@@ -42,8 +42,8 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: Build contracts (no via-IR to fit in cx33 memory)
-        run: FOUNDRY_PROFILE=medusa forge build
+      - name: Build contracts
+        run: forge build --skip script
 
       - name: Install Halmos
         run: pip install halmos

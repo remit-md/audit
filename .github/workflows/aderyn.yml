@@ -31,8 +31,8 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: Build contracts (no via-IR to fit in cx33 memory)
-        run: FOUNDRY_PROFILE=medusa forge build
+      - name: Build contracts (src only, no via-IR to fit in cx33 memory)
+        run: FOUNDRY_PROFILE=medusa forge build --skip test --skip script
 
       - name: Install Aderyn (binary)
         run: |
