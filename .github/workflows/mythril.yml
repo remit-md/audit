@@ -47,8 +47,8 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: Build contracts
-        run: forge build
+      - name: Build contracts (no via-IR to fit in cx33 memory)
+        run: FOUNDRY_PROFILE=medusa forge build
 
       - name: Install Mythril
         run: pip install mythril
