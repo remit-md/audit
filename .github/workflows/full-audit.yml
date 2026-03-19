@@ -39,7 +39,7 @@ jobs:
 
   summary:
     name: Audit Summary
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
     needs: [slither, aderyn, mythril, halmos]
     if: always()
     steps:

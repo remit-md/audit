@@ -18,9 +18,7 @@ on:
 jobs:
   aderyn:
     name: Aderyn static analysis
-    runs-on: [self-hosted, linux, x64]
-    env:
-      PATH: /home/runner/.local/bin:/home/runner/.aderyn/bin:/home/runner/.foundry/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout protocol
@@ -33,8 +31,8 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: Build contracts (src only, no via-IR to fit in cx33 memory)
-        run: FOUNDRY_PROFILE=medusa forge build --skip test --skip script
+      - name: Build contracts
+        run: forge build
 
       - name: Install Aderyn (binary)
         run: |
@@ -64,7 +62,6 @@ jobs:
           echo "## Aderyn Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ -f aderyn-report.md ]; then
-            # Extract the summary section (first 80 lines usually covers it)
             head -80 aderyn-report.md >> $GITHUB_STEP_SUMMARY
           else
             echo "No report generated. See artifact for output." >> $GITHUB_STEP_SUMMARY

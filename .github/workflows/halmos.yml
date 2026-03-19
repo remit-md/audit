@@ -28,9 +28,7 @@ on:
 jobs:
   halmos:
     name: Halmos symbolic proofs
-    runs-on: [self-hosted, linux, x64]
-    env:
-      PATH: /home/runner/.local/bin:/home/runner/.foundry/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    runs-on: ubuntu-latest
     timeout-minutes: 90
 
     steps:
@@ -45,17 +43,17 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: Build contracts
-        run: forge build --skip script
+        run: forge build
 
       - name: Install Halmos
-        run: pip3 install --break-system-packages halmos
+        run: pip install halmos
 
       - name: Run Halmos symbolic proofs
         run: |
           halmos \
-            --match-contract ${{ inputs.contract }} \
-            --solver-timeout-assertion ${{ inputs.timeout }} \
-            --solver-timeout-branching ${{ inputs.timeout }} \
+            --match-contract ${{ inputs.contract || 'RemitSymbolicProofs' }} \
+            --solver-timeout-assertion ${{ inputs.timeout || '300' }} \
+            --solver-timeout-branching ${{ inputs.timeout || '300' }} \
             --storage-layout generic \
             --statistics \
             2>&1 | tee halmos-output.txt || true
@@ -66,9 +64,8 @@ jobs:
           echo "## Halmos Symbolic Proof Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Parse results
-          pass=$(grep -c "^.*PASS" halmos-output.txt 2>/dev/null || echo "0")
-          fail=$(grep -c "^.*FAIL" halmos-output.txt 2>/dev/null || echo "0")
+          pass=$(grep -c "PASS" halmos-output.txt 2>/dev/null || echo "0")
+          fail=$(grep -c "FAIL" halmos-output.txt 2>/dev/null || echo "0")
           echo "**Passed:** ${pass} | **Failed:** ${fail}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
@@ -87,14 +84,6 @@ jobs:
           echo "| P3 | No double-settle: second releaseEscrow always reverts | Escrow |" >> $GITHUB_STEP_SUMMARY
           echo "| P4 | Tab locks exact amount: payer loses exactly limit | Tab |" >> $GITHUB_STEP_SUMMARY
           echo "| P5 | Fee oracle correctness: MockFeeCalculator = 1% formula | FeeCalculator |" >> $GITHUB_STEP_SUMMARY
-
-          if [ -f halmos-output.txt ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### Statistics" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            grep -E "^(Time|Paths|Total)" halmos-output.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null || true
-            echo '```' >> $GITHUB_STEP_SUMMARY
-          fi
 
       - name: Upload report
         uses: actions/upload-artifact@v4

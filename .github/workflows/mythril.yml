@@ -33,9 +33,7 @@ on:
 jobs:
   mythril:
     name: Mythril symbolic analysis
-    runs-on: [self-hosted, linux, x64]
-    env:
-      PATH: /home/runner/.local/bin:/home/runner/.foundry/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    runs-on: ubuntu-latest
     timeout-minutes: 180
 
     steps:
@@ -49,11 +47,14 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: Build contracts (src only, no via-IR to fit in cx33 memory)
-        run: FOUNDRY_PROFILE=medusa forge build --skip test --skip script
+      - name: Build contracts
+        run: forge build
 
       - name: Install Mythril
-        run: pip3 install --break-system-packages mythril
+        run: pip install mythril
+
+      - name: Generate remappings file
+        run: forge remappings > remappings.txt
 
       - name: Determine contracts to analyze
         id: contracts
@@ -67,10 +68,12 @@ jobs:
       - name: Run Mythril
         run: |
           mkdir -p mythril-reports
+          # Build remapping args for solc
+          REMAPS=$(cat remappings.txt | tr '\n' ' ' | sed 's/ *$//')
+
           IFS=',' read -ra CONTRACTS <<< "${{ steps.contracts.outputs.list }}"
-          failed=0
           for contract in "${CONTRACTS[@]}"; do
-            contract=$(echo "$contract" | xargs)  # trim whitespace
+            contract=$(echo "$contract" | xargs)
             echo "=== Analyzing $contract ==="
             sol_file=$(find src -name "${contract}.sol" | head -1)
             if [ -z "$sol_file" ]; then
@@ -78,15 +81,14 @@ jobs:
               continue
             fi
             myth analyze "$sol_file" \
-              --solc-json <(echo '{"optimizer":{"enabled":true,"runs":200},"evmVersion":"cancun"}') \
+              --solc-json <(echo "{\"optimizer\":{\"enabled\":true,\"runs\":200},\"evmVersion\":\"cancun\",\"remappings\":[$(forge remappings | sed 's/.*/"&"/' | paste -sd,)]}") \
               --solv 0.8.24 \
-              --execution-timeout ${{ inputs.timeout }} \
+              --execution-timeout ${{ inputs.timeout || '300' }} \
               --max-depth 24 \
               -o markdown \
               > "mythril-reports/${contract}.md" 2>&1 || true
             echo "--- ${contract} done ---"
           done
-          # Combined output
           cat mythril-reports/*.md > mythril-combined.md 2>/dev/null || echo "No reports generated" > mythril-combined.md
 
       - name: Generate summary

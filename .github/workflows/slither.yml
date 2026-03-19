@@ -18,9 +18,7 @@ on:
 jobs:
   slither:
     name: Slither static analysis
-    runs-on: [self-hosted, linux, x64]
-    env:
-      PATH: /home/runner/.local/bin:/home/runner/.foundry/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout protocol
@@ -33,14 +31,11 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: Build contracts (src only, no via-IR to fit in cx33 memory)
-        run: |
-          # Build only src/ — tests have stack-too-deep without via-IR
-          # and Slither doesn't need them anyway
-          FOUNDRY_PROFILE=medusa forge build --skip test --skip script
+      - name: Build contracts
+        run: forge build --build-info
 
       - name: Install Slither
-        run: pip3 install --break-system-packages slither-analyzer
+        run: pip install slither-analyzer
 
       - name: Run Slither (full report)
         run: |
