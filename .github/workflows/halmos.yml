@@ -11,7 +11,7 @@ on:
       timeout:
         description: "Solver timeout per test (seconds)"
         required: false
-        default: "300"
+        default: "600"
         type: string
       contract:
         description: "Halmos test contract to run (default: all check_ tests)"
@@ -52,11 +52,19 @@ jobs:
         run: |
           halmos \
             --match-contract ${{ inputs.contract || 'RemitSymbolicProofs' }} \
-            --solver-timeout-assertion ${{ inputs.timeout || '300' }} \
-            --solver-timeout-branching ${{ inputs.timeout || '300' }} \
+            --solver-timeout-assertion ${{ inputs.timeout || '600' }} \
+            --solver-timeout-branching ${{ inputs.timeout || '600' }} \
             --storage-layout generic \
             --statistics \
-            2>&1 | tee halmos-output.txt || true
+            2>&1 | tee halmos-output.txt
+          # Check for failures — don't silently swallow them
+          if grep -q "\[FAIL\]" halmos-output.txt; then
+            echo "::error::Halmos proof failure detected"
+            exit 1
+          fi
+          if grep -q "\[TIMEOUT\]" halmos-output.txt; then
+            echo "::warning::Halmos solver timeout on one or more proofs"
+          fi
 
       - name: Generate summary
         if: always()

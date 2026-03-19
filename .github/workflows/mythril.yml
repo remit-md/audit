@@ -53,8 +53,26 @@ jobs:
       - name: Install Mythril
         run: pip install mythril
 
-      - name: Generate remappings file
-        run: forge remappings > remappings.txt
+      - name: Generate solc config
+        run: |
+          # Build remappings array for solc standard JSON
+          REMAPPINGS=$(forge remappings | python3 -c "
+          import sys, json
+          lines = [l.strip() for l in sys.stdin if l.strip()]
+          print(json.dumps(lines))
+          ")
+
+          # Write solc config to a real file (process substitution breaks Mythril)
+          cat > solc-config.json <<SOLCEOF
+          {
+            "optimizer": { "enabled": true, "runs": 200 },
+            "evmVersion": "cancun",
+            "remappings": ${REMAPPINGS}
+          }
+          SOLCEOF
+
+          echo "Generated solc-config.json:"
+          cat solc-config.json
 
       - name: Determine contracts to analyze
         id: contracts
@@ -68,8 +86,8 @@ jobs:
       - name: Run Mythril
         run: |
           mkdir -p mythril-reports
-          # Build remapping args for solc
-          REMAPS=$(cat remappings.txt | tr '\n' ' ' | sed 's/ *$//')
+          analyzed=0
+          errors=0
 
           IFS=',' read -ra CONTRACTS <<< "${{ steps.contracts.outputs.list }}"
           for contract in "${CONTRACTS[@]}"; do
@@ -80,16 +98,31 @@ jobs:
               echo "WARNING: ${contract}.sol not found, skipping"
               continue
             fi
-            myth analyze "$sol_file" \
-              --solc-json <(echo "{\"optimizer\":{\"enabled\":true,\"runs\":200},\"evmVersion\":\"cancun\",\"remappings\":[$(forge remappings | sed 's/.*/"&"/' | paste -sd,)]}") \
+            if myth analyze "$sol_file" \
+              --solc-json solc-config.json \
               --solv 0.8.24 \
               --execution-timeout ${{ inputs.timeout || '300' }} \
               --max-depth 24 \
               -o markdown \
-              > "mythril-reports/${contract}.md" 2>&1 || true
+              > "mythril-reports/${contract}.md" 2>&1; then
+              analyzed=$((analyzed + 1))
+            else
+              errors=$((errors + 1))
+            fi
             echo "--- ${contract} done ---"
           done
+
           cat mythril-reports/*.md > mythril-combined.md 2>/dev/null || echo "No reports generated" > mythril-combined.md
+
+          echo ""
+          echo "=== MYTHRIL SUMMARY ==="
+          echo "Analyzed: $analyzed | Errors: $errors"
+
+          # Fail the step if ALL contracts errored
+          if [ "$analyzed" -eq 0 ] && [ "$errors" -gt 0 ]; then
+            echo "::error::Mythril failed on all contracts"
+            exit 1
+          fi
 
       - name: Generate summary
         if: always()
@@ -103,10 +136,10 @@ jobs:
             contract=$(echo "$contract" | xargs)
             f="mythril-reports/${contract}.md"
             if [ -f "$f" ]; then
-              issues=$(grep -c "^##" "$f" 2>/dev/null || echo "0")
               if grep -qi "error\|exception\|traceback" "$f" 2>/dev/null; then
                 echo "| ${contract} | — | Error (see artifact) |" >> $GITHUB_STEP_SUMMARY
               else
+                issues=$(grep -c "^##" "$f" 2>/dev/null || echo "0")
                 echo "| ${contract} | ${issues} | Analyzed |" >> $GITHUB_STEP_SUMMARY
               fi
             else
@@ -122,4 +155,5 @@ jobs:
           path: |
             mythril-reports/
             mythril-combined.md
+            solc-config.json
           retention-days: 90
