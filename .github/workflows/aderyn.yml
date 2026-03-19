@@ -46,7 +46,7 @@ jobs:
         run: |
           aderyn . \
             --src src/ \
-            --exclude src/test/ \
+            --path-excludes src/test/ \
             --output aderyn-report.md \
             2>&1 | tee aderyn-output.txt || true
 
@@ -54,7 +54,7 @@ jobs:
         run: |
           aderyn . \
             --src src/ \
-            --exclude src/test/ \
+            --path-excludes src/test/ \
             --output aderyn-report.json \
             2>&1 || true
 
