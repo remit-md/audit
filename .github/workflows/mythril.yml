@@ -51,7 +51,7 @@ jobs:
         run: FOUNDRY_PROFILE=medusa forge build --skip test --skip script
 
       - name: Install Mythril
-        run: pip install mythril
+        run: pip3 install --break-system-packages mythril
 
       - name: Determine contracts to analyze
         id: contracts

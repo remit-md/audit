@@ -38,7 +38,7 @@ jobs:
           FOUNDRY_PROFILE=medusa forge build --skip test --skip script
 
       - name: Install Slither
-        run: pip install slither-analyzer
+        run: pip3 install --break-system-packages slither-analyzer
 
       - name: Run Slither (full report)
         run: |

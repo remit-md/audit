@@ -46,7 +46,7 @@ jobs:
         run: forge build --skip script
 
       - name: Install Halmos
-        run: pip install halmos
+        run: pip3 install --break-system-packages halmos
 
       - name: Run Halmos symbolic proofs
         run: |
