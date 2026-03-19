@@ -18,10 +18,7 @@ on:
 jobs:
   slither:
     name: Slither static analysis
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write  # for SARIF upload
+    runs-on: [self-hosted, linux, x64]
 
     steps:
       - name: Checkout protocol
