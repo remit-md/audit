@@ -8,6 +8,12 @@ on:
         required: false
         default: "main"
         type: string
+  workflow_call:
+    inputs:
+      ref:
+        required: false
+        default: "main"
+        type: string
 
 jobs:
   aderyn:
@@ -28,29 +34,55 @@ jobs:
       - name: Build contracts
         run: forge build
 
-      - name: Install Aderyn
-        run: cargo install aderyn
+      - name: Install Aderyn (binary)
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf \
+            https://github.com/cyfrin/aderyn/releases/latest/download/aderyn-installer.sh | bash
+          echo "$HOME/.aderyn/bin" >> $GITHUB_PATH
 
       - name: Run Aderyn
         run: |
-          aderyn . --output aderyn-report.md 2>&1 | tee aderyn-output.txt || true
+          aderyn . \
+            --src src/ \
+            --exclude src/test/ \
+            --output aderyn-report.md \
+            2>&1 | tee aderyn-output.txt || true
+
+      - name: Run Aderyn (JSON)
+        run: |
+          aderyn . \
+            --src src/ \
+            --exclude src/test/ \
+            --output aderyn-report.json \
+            2>&1 || true
 
       - name: Generate summary
+        if: always()
         run: |
           echo "## Aderyn Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ -f aderyn-report.md ]; then
-            head -50 aderyn-report.md >> $GITHUB_STEP_SUMMARY
+            # Extract the summary section (first 80 lines usually covers it)
+            head -80 aderyn-report.md >> $GITHUB_STEP_SUMMARY
           else
             echo "No report generated. See artifact for output." >> $GITHUB_STEP_SUMMARY
           fi
 
-      - name: Upload report
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Contracts Analyzed" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          find src -maxdepth 1 -name "*.sol" | sort | while read f; do
+            echo "  $(basename $f)"
+          done >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload reports
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: aderyn-report
           path: |
             aderyn-report.md
+            aderyn-report.json
             aderyn-output.txt
           retention-days: 90

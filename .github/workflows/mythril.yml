@@ -9,19 +9,32 @@ on:
         default: "main"
         type: string
       contracts:
-        description: "Comma-separated contract names to analyze (empty = all fund-holding)"
+        description: "Comma-separated contract names to analyze (empty = all)"
         required: false
         default: ""
         type: string
+      timeout:
+        description: "Execution timeout per contract (seconds)"
+        required: false
+        default: "300"
+        type: string
+  workflow_call:
+    inputs:
+      ref:
+        required: false
+        default: "main"
+        type: string
 
-# Fund-holding contracts to analyze by default
-# RemitEscrow, RemitTab, RemitStream, RemitBounty, RemitDeposit, RemitOnrampVault, RemitRouter
+# All 11 source contracts:
+#   Fund-holding:  RemitEscrow, RemitTab, RemitStream, RemitBounty, RemitDeposit, RemitOnrampVault
+#   Proxied:       RemitRouter (UUPS), RemitFeeCalculator (UUPS)
+#   Infrastructure: RemitKeyRegistry, RemitArbitration, OnrampVaultFactory
 
 jobs:
   mythril:
     name: Mythril symbolic analysis
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
 
     steps:
       - name: Checkout protocol
@@ -46,13 +59,14 @@ jobs:
           if [ -n "${{ inputs.contracts }}" ]; then
             echo "list=${{ inputs.contracts }}" >> $GITHUB_OUTPUT
           else
-            echo "list=RemitEscrow,RemitTab,RemitStream,RemitBounty,RemitDeposit,RemitOnrampVault,RemitRouter" >> $GITHUB_OUTPUT
+            echo "list=RemitEscrow,RemitTab,RemitStream,RemitBounty,RemitDeposit,RemitOnrampVault,RemitRouter,RemitFeeCalculator,RemitKeyRegistry,RemitArbitration,OnrampVaultFactory" >> $GITHUB_OUTPUT
           fi
 
       - name: Run Mythril
         run: |
           mkdir -p mythril-reports
           IFS=',' read -ra CONTRACTS <<< "${{ steps.contracts.outputs.list }}"
+          failed=0
           for contract in "${CONTRACTS[@]}"; do
             contract=$(echo "$contract" | xargs)  # trim whitespace
             echo "=== Analyzing $contract ==="
@@ -64,7 +78,7 @@ jobs:
             myth analyze "$sol_file" \
               --solc-json <(echo '{"optimizer":{"enabled":true,"runs":200},"evmVersion":"cancun"}') \
               --solv 0.8.24 \
-              --execution-timeout 300 \
+              --execution-timeout ${{ inputs.timeout }} \
               --max-depth 24 \
               -o markdown \
               > "mythril-reports/${contract}.md" 2>&1 || true
@@ -74,14 +88,26 @@ jobs:
           cat mythril-reports/*.md > mythril-combined.md 2>/dev/null || echo "No reports generated" > mythril-combined.md
 
       - name: Generate summary
+        if: always()
         run: |
           echo "## Mythril Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          for f in mythril-reports/*.md; do
-            [ -f "$f" ] || continue
-            name=$(basename "$f" .md)
-            issues=$(grep -c "^##" "$f" 2>/dev/null || echo "0")
-            echo "- **${name}**: ${issues} finding(s)" >> $GITHUB_STEP_SUMMARY
+          echo "| Contract | Findings | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|----------|--------|" >> $GITHUB_STEP_SUMMARY
+          IFS=',' read -ra CONTRACTS <<< "${{ steps.contracts.outputs.list }}"
+          for contract in "${CONTRACTS[@]}"; do
+            contract=$(echo "$contract" | xargs)
+            f="mythril-reports/${contract}.md"
+            if [ -f "$f" ]; then
+              issues=$(grep -c "^##" "$f" 2>/dev/null || echo "0")
+              if grep -qi "error\|exception\|traceback" "$f" 2>/dev/null; then
+                echo "| ${contract} | — | Error (see artifact) |" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "| ${contract} | ${issues} | Analyzed |" >> $GITHUB_STEP_SUMMARY
+              fi
+            else
+              echo "| ${contract} | — | Not found |" >> $GITHUB_STEP_SUMMARY
+            fi
           done
 
       - name: Upload reports

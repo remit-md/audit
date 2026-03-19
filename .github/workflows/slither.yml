@@ -8,11 +8,20 @@ on:
         required: false
         default: "main"
         type: string
+  workflow_call:
+    inputs:
+      ref:
+        required: false
+        default: "main"
+        type: string
 
 jobs:
   slither:
     name: Slither static analysis
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # for SARIF upload
 
     steps:
       - name: Checkout protocol
@@ -26,32 +35,65 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: Build contracts
-        run: forge build
+        run: forge build --build-info
 
       - name: Install Slither
         run: pip install slither-analyzer
 
-      - name: Run Slither
+      - name: Run Slither (full report)
         run: |
-          slither . --detect all \
-            --filter-paths "lib/|test/|script/" \
+          slither . \
+            --filter-paths "lib/|test/|script/|src/test/" \
+            --exclude-dependencies \
+            --detect all \
             --json slither-report.json \
+            --sarif slither-report.sarif \
             2>&1 | tee slither-output.txt || true
 
       - name: Generate summary
+        if: always()
         run: |
           echo "## Slither Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Count by severity
+          if [ -f slither-report.json ]; then
+            echo "### Findings by Severity" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            for sev in High Medium Low Informational Optimization; do
+              count=$(python3 -c "
+          import json, sys
+          data = json.load(open('slither-report.json'))
+          results = data.get('results', {}).get('detectors', [])
+          print(sum(1 for r in results if r.get('impact','').lower() == '${sev,,}'))
+          " 2>/dev/null || echo "?")
+              echo "- **${sev}:** ${count}" >> $GITHUB_STEP_SUMMARY
+            done
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Contracts analyzed
+          echo "### Contracts Analyzed" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          grep -E "^[0-9]+ result|INFO:|LOW:|MEDIUM:|HIGH:|CRITICAL:" slither-output.txt >> $GITHUB_STEP_SUMMARY || echo "See artifact for full output" >> $GITHUB_STEP_SUMMARY
+          find src -maxdepth 1 -name "*.sol" | sort | while read f; do
+            echo "  $(basename $f)"
+          done >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-      - name: Upload report
+      - name: Upload SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: slither-report.sarif
+        continue-on-error: true  # SARIF upload may fail on private repos without GHAS
+
+      - name: Upload reports
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: slither-report
           path: |
             slither-report.json
+            slither-report.sarif
             slither-output.txt
           retention-days: 90
