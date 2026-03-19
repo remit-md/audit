@@ -19,6 +19,8 @@ jobs:
   aderyn:
     name: Aderyn static analysis
     runs-on: [self-hosted, linux, x64]
+    env:
+      PATH: /home/runner/.local/bin:/home/runner/.aderyn/bin:/home/runner/.foundry/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
     steps:
       - name: Checkout protocol

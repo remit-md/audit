@@ -29,6 +29,8 @@ jobs:
   halmos:
     name: Halmos symbolic proofs
     runs-on: [self-hosted, linux, x64]
+    env:
+      PATH: /home/runner/.local/bin:/home/runner/.foundry/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     timeout-minutes: 90
 
     steps:
