@@ -25,6 +25,9 @@ on:
         default: "main"
         type: string
 
+permissions:
+  contents: read
+
 # All 11 source contracts:
 #   Fund-holding:  RemitEscrow, RemitTab, RemitStream, RemitBounty, RemitDeposit, RemitOnrampVault
 #   Proxied:       RemitRouter (UUPS), RemitFeeCalculator (UUPS)

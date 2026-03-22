@@ -12,6 +12,9 @@ on:
 # Runs all 4 audit tools in parallel against the same ref.
 # Use this for pre-deployment security sweeps.
 
+permissions:
+  contents: read
+
 jobs:
   slither:
     name: Slither

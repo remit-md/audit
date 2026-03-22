@@ -15,6 +15,9 @@ on:
         default: "main"
         type: string
 
+permissions:
+  contents: read
+
 jobs:
   aderyn:
     name: Aderyn static analysis
