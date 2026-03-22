@@ -54,7 +54,7 @@ jobs:
         run: forge build
 
       - name: Install Mythril
-        run: pip install mythril
+        run: pip install mythril==0.24.8
 
       - name: Generate solc config
         run: |
@@ -79,20 +79,25 @@ jobs:
 
       - name: Determine contracts to analyze
         id: contracts
+        env:
+          INPUT_CONTRACTS: ${{ inputs.contracts }}
         run: |
-          if [ -n "${{ inputs.contracts }}" ]; then
-            echo "list=${{ inputs.contracts }}" >> $GITHUB_OUTPUT
+          if [ -n "$INPUT_CONTRACTS" ]; then
+            echo "list=$INPUT_CONTRACTS" >> $GITHUB_OUTPUT
           else
             echo "list=RemitEscrow,RemitTab,RemitStream,RemitBounty,RemitDeposit,RemitOnrampVault,RemitRouter,RemitFeeCalculator,RemitKeyRegistry,RemitArbitration,OnrampVaultFactory" >> $GITHUB_OUTPUT
           fi
 
       - name: Run Mythril
+        env:
+          CONTRACT_LIST: ${{ steps.contracts.outputs.list }}
+          MYTH_TIMEOUT: ${{ inputs.timeout }}
         run: |
           mkdir -p mythril-reports
           analyzed=0
           errors=0
 
-          IFS=',' read -ra CONTRACTS <<< "${{ steps.contracts.outputs.list }}"
+          IFS=',' read -ra CONTRACTS <<< "$CONTRACT_LIST"
           for contract in "${CONTRACTS[@]}"; do
             contract=$(echo "$contract" | xargs)
             echo "=== Analyzing $contract ==="
@@ -104,7 +109,7 @@ jobs:
             if myth analyze "$sol_file" \
               --solc-json solc-config.json \
               --solv 0.8.24 \
-              --execution-timeout ${{ inputs.timeout || '300' }} \
+              --execution-timeout "${MYTH_TIMEOUT:-300}" \
               --max-depth 24 \
               -o markdown \
               > "mythril-reports/${contract}.md" 2>&1; then
@@ -129,12 +134,14 @@ jobs:
 
       - name: Generate summary
         if: always()
+        env:
+          CONTRACT_LIST: ${{ steps.contracts.outputs.list }}
         run: |
           echo "## Mythril Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Contract | Findings | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|----------|--------|" >> $GITHUB_STEP_SUMMARY
-          IFS=',' read -ra CONTRACTS <<< "${{ steps.contracts.outputs.list }}"
+          IFS=',' read -ra CONTRACTS <<< "$CONTRACT_LIST"
           for contract in "${CONTRACTS[@]}"; do
             contract=$(echo "$contract" | xargs)
             f="mythril-reports/${contract}.md"

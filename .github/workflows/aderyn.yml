@@ -37,10 +37,10 @@ jobs:
       - name: Build contracts
         run: forge build
 
-      - name: Install Aderyn (binary)
+      - name: Install Aderyn (binary, pinned v0.6.8)
         run: |
           curl --proto '=https' --tlsv1.2 -LsSf \
-            https://github.com/cyfrin/aderyn/releases/latest/download/aderyn-installer.sh | bash
+            https://github.com/cyfrin/aderyn/releases/download/aderyn-v0.6.8/aderyn-installer.sh | bash
           echo "$HOME/.aderyn/bin" >> $GITHUB_PATH
 
       - name: Run Aderyn

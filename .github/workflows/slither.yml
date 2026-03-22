@@ -17,6 +17,7 @@ on:
 
 permissions:
   contents: read
+  security-events: write
 
 jobs:
   slither:
@@ -38,7 +39,7 @@ jobs:
         run: forge build --build-info
 
       - name: Install Slither
-        run: pip install slither-analyzer
+        run: pip install slither-analyzer==0.11.5
 
       - name: Run Slither (full report)
         run: |
@@ -47,6 +48,7 @@ jobs:
             --exclude-dependencies \
             --detect all \
             --json slither-report.json \
+            --sarif slither-sarif.json \
             2>&1 | tee slither-output.txt || true
 
       - name: Generate summary
@@ -79,6 +81,28 @@ jobs:
           done >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
+      - name: Fail on high-severity findings
+        if: always()
+        run: |
+          if [ -f slither-report.json ]; then
+            high_count=$(python3 -c "
+          import json
+          data = json.load(open('slither-report.json'))
+          results = data.get('results', {}).get('detectors', [])
+          print(sum(1 for r in results if r.get('impact','').lower() == 'high'))
+          " 2>/dev/null || echo "0")
+            if [ "$high_count" -gt 0 ]; then
+              echo "::error::Slither found $high_count high-severity finding(s)"
+              exit 1
+            fi
+          fi
+
+      - name: Upload SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always() && hashFiles('slither-sarif.json') != ''
+        with:
+          sarif_file: slither-sarif.json
+
       - name: Upload reports
         uses: actions/upload-artifact@v4
         if: always()
@@ -86,5 +110,6 @@ jobs:
           name: slither-report
           path: |
             slither-report.json
+            slither-sarif.json
             slither-output.txt
           retention-days: 90

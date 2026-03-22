@@ -49,14 +49,17 @@ jobs:
         run: forge build
 
       - name: Install Halmos
-        run: pip install halmos
+        run: pip install halmos==0.3.3
 
       - name: Run Halmos symbolic proofs
+        env:
+          HALMOS_CONTRACT: ${{ inputs.contract }}
+          HALMOS_TIMEOUT: ${{ inputs.timeout }}
         run: |
           halmos \
-            --match-contract ${{ inputs.contract || 'RemitSymbolicProofs' }} \
-            --solver-timeout-assertion ${{ inputs.timeout || '600' }} \
-            --solver-timeout-branching ${{ inputs.timeout || '600' }} \
+            --match-contract "${HALMOS_CONTRACT:-RemitSymbolicProofs}" \
+            --solver-timeout-assertion "${HALMOS_TIMEOUT:-600}" \
+            --solver-timeout-branching "${HALMOS_TIMEOUT:-600}" \
             --storage-layout generic \
             --statistics \
             2>&1 | tee halmos-output.txt
