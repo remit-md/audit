@@ -100,7 +100,7 @@ jobs:
           echo "| P5 | Fee oracle correctness: MockFeeCalculator = 1% formula | FeeCalculator |" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: halmos-report
