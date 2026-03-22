@@ -41,7 +41,7 @@ jobs:
 
     steps:
       - name: Checkout protocol
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: remit-md/protocol
           ref: ${{ inputs.ref }}
