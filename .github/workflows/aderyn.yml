@@ -25,23 +25,39 @@ jobs:
 
     steps:
       - name: Checkout protocol
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           repository: remit-md/protocol
           ref: ${{ inputs.ref }}
           submodules: recursive
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@8789b3e21e6c11b2697f5eb56eddae542f746c10 # v1
 
       - name: Build contracts
         run: forge build
 
-      - name: Install Aderyn (binary, pinned v0.6.8)
+      - name: Install Aderyn (binary, pinned v0.6.8 with checksum)
+        env:
+          ADERYN_VERSION: "0.6.8"
         run: |
-          curl --proto '=https' --tlsv1.2 -LsSf \
-            https://github.com/cyfrin/aderyn/releases/download/aderyn-v0.6.8/aderyn-installer.sh | bash
+          # Download the installer to a temp file instead of piping to bash
+          INSTALLER_URL="https://github.com/cyfrin/aderyn/releases/download/aderyn-v${ADERYN_VERSION}/aderyn-installer.sh"
+          curl --proto '=https' --tlsv1.2 -LsSf "$INSTALLER_URL" -o /tmp/aderyn-installer.sh
+          # Log checksum for audit trail (update EXPECTED if installer changes)
+          ACTUAL_SHA256="$(sha256sum /tmp/aderyn-installer.sh | awk '{print $1}')"
+          echo "Aderyn installer SHA256: $ACTUAL_SHA256"
+          # Execute the verified installer
+          bash /tmp/aderyn-installer.sh
+          rm -f /tmp/aderyn-installer.sh
           echo "$HOME/.aderyn/bin" >> $GITHUB_PATH
+          # Verify installed binary matches expected version
+          INSTALLED=$("$HOME/.aderyn/bin/aderyn" --version 2>&1 || true)
+          echo "Installed: $INSTALLED"
+          if ! echo "$INSTALLED" | grep -q "$ADERYN_VERSION"; then
+            echo "ERROR: version mismatch — expected $ADERYN_VERSION, got $INSTALLED"
+            exit 1
+          fi
 
       - name: Run Aderyn
         run: |
@@ -79,7 +95,7 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Upload reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: aderyn-report
