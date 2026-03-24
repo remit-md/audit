@@ -42,19 +42,26 @@ jobs:
       - name: Install Aderyn (direct binary, pinned v0.6.8)
         env:
           ADERYN_VERSION: "0.6.8"
+          ADERYN_TARBALL: "aderyn-x86_64-unknown-linux-gnu.tar.xz"
         run: |
-          # Download pre-built binary directly (skip installer — path changed in 0.6.8)
-          TARBALL_URL="https://github.com/cyfrin/aderyn/releases/download/aderyn-v${ADERYN_VERSION}/aderyn-x86_64-unknown-linux-gnu.tar.xz"
-          CHECKSUM_URL="${TARBALL_URL}.sha256"
-          curl --proto '=https' --tlsv1.2 -LsSf "$TARBALL_URL" -o /tmp/aderyn.tar.xz
-          curl --proto '=https' --tlsv1.2 -LsSf "$CHECKSUM_URL" -o /tmp/aderyn.tar.xz.sha256
-          # Verify checksum
-          echo "Expected: $(cat /tmp/aderyn.tar.xz.sha256)"
-          echo "Actual:   $(sha256sum /tmp/aderyn.tar.xz | awk '{print $1}')"
-          cd /tmp && sha256sum -c aderyn.tar.xz.sha256
-          # Extract and install
+          # Download pre-built binary directly (skip installer script)
+          BASE_URL="https://github.com/cyfrin/aderyn/releases/download/aderyn-v${ADERYN_VERSION}"
+          curl --proto '=https' --tlsv1.2 -LsSf "${BASE_URL}/${ADERYN_TARBALL}" -o "/tmp/${ADERYN_TARBALL}"
+          curl --proto '=https' --tlsv1.2 -LsSf "${BASE_URL}/${ADERYN_TARBALL}.sha256" -o "/tmp/${ADERYN_TARBALL}.sha256"
+          # Verify checksum (file must match name in .sha256)
+          cd /tmp && sha256sum -c "${ADERYN_TARBALL}.sha256"
+          # Extract — tarball contains aderyn binary (may be in a subdir)
+          mkdir -p /tmp/aderyn-extract
+          tar -xJf "/tmp/${ADERYN_TARBALL}" -C /tmp/aderyn-extract
+          # Find the binary and install
           mkdir -p "$HOME/.local/bin"
-          tar -xJf /tmp/aderyn.tar.xz -C "$HOME/.local/bin/"
+          BINARY=$(find /tmp/aderyn-extract -name aderyn -type f | head -1)
+          if [ -z "$BINARY" ]; then
+            echo "ERROR: aderyn binary not found in tarball. Contents:"
+            find /tmp/aderyn-extract -type f
+            exit 1
+          fi
+          cp "$BINARY" "$HOME/.local/bin/aderyn"
           chmod +x "$HOME/.local/bin/aderyn"
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           # Verify version
