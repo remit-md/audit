@@ -128,6 +128,11 @@ jobs:
           echo "=== MYTHRIL SUMMARY ==="
           echo "Analyzed: $analyzed | Errors: $errors"
 
+          # Warn on partial failures
+          if [ "$errors" -gt 0 ] && [ "$analyzed" -gt 0 ]; then
+            echo "::warning::Mythril failed on $errors contract(s) out of $((analyzed + errors))"
+          fi
+
           # Fail the step if ALL contracts errored
           if [ "$analyzed" -eq 0 ] && [ "$errors" -gt 0 ]; then
             echo "::error::Mythril failed on all contracts"
