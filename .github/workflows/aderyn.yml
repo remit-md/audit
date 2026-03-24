@@ -62,20 +62,21 @@ jobs:
           fi
 
       - name: Run Aderyn
+        continue-on-error: true
         run: |
           aderyn . \
             --src src/ \
             --path-excludes src/test/ \
             --output aderyn-report.md \
-            2>&1 | tee aderyn-output.txt || true
+            2>&1 | tee aderyn-output.txt
 
       - name: Run Aderyn (JSON)
+        continue-on-error: true
         run: |
           aderyn . \
             --src src/ \
             --path-excludes src/test/ \
-            --output aderyn-report.json \
-            2>&1 || true
+            --output aderyn-report.json
 
       - name: Generate summary
         if: always()
