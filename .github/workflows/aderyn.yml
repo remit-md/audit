@@ -39,22 +39,26 @@ jobs:
       - name: Build contracts
         run: forge build
 
-      - name: Install Aderyn (binary, pinned v0.6.8 with checksum)
+      - name: Install Aderyn (direct binary, pinned v0.6.8)
         env:
           ADERYN_VERSION: "0.6.8"
         run: |
-          # Download the installer to a temp file instead of piping to bash
-          INSTALLER_URL="https://github.com/cyfrin/aderyn/releases/download/aderyn-v${ADERYN_VERSION}/aderyn-installer.sh"
-          curl --proto '=https' --tlsv1.2 -LsSf "$INSTALLER_URL" -o /tmp/aderyn-installer.sh
-          # Log checksum for audit trail (update EXPECTED if installer changes)
-          ACTUAL_SHA256="$(sha256sum /tmp/aderyn-installer.sh | awk '{print $1}')"
-          echo "Aderyn installer SHA256: $ACTUAL_SHA256"
-          # Execute the verified installer
-          bash /tmp/aderyn-installer.sh
-          rm -f /tmp/aderyn-installer.sh
-          echo "$HOME/.aderyn/bin" >> $GITHUB_PATH
-          # Verify installed binary matches expected version
-          INSTALLED=$("$HOME/.aderyn/bin/aderyn" --version 2>&1 || true)
+          # Download pre-built binary directly (skip installer — path changed in 0.6.8)
+          TARBALL_URL="https://github.com/cyfrin/aderyn/releases/download/aderyn-v${ADERYN_VERSION}/aderyn-x86_64-unknown-linux-gnu.tar.xz"
+          CHECKSUM_URL="${TARBALL_URL}.sha256"
+          curl --proto '=https' --tlsv1.2 -LsSf "$TARBALL_URL" -o /tmp/aderyn.tar.xz
+          curl --proto '=https' --tlsv1.2 -LsSf "$CHECKSUM_URL" -o /tmp/aderyn.tar.xz.sha256
+          # Verify checksum
+          echo "Expected: $(cat /tmp/aderyn.tar.xz.sha256)"
+          echo "Actual:   $(sha256sum /tmp/aderyn.tar.xz | awk '{print $1}')"
+          cd /tmp && sha256sum -c aderyn.tar.xz.sha256
+          # Extract and install
+          mkdir -p "$HOME/.local/bin"
+          tar -xJf /tmp/aderyn.tar.xz -C "$HOME/.local/bin/"
+          chmod +x "$HOME/.local/bin/aderyn"
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          # Verify version
+          INSTALLED=$("$HOME/.local/bin/aderyn" --version 2>&1 || true)
           echo "Installed: $INSTALLED"
           if ! echo "$INSTALLED" | grep -q "$ADERYN_VERSION"; then
             echo "ERROR: version mismatch — expected $ADERYN_VERSION, got $INSTALLED"
